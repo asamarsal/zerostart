@@ -8,6 +8,8 @@ const xellarAppId = import.meta.env.VITE_XELLAR_APP_ID;
 const walletConnectProjectId = import.meta.env.VITE_WC_PROJECT_ID;
 if (!xellarAppId || !walletConnectProjectId) {
   console.error('Missing required environment variables');
+  console.log('xellarAppId:', xellarAppId);
+  console.log('walletConnectProjectId:', walletConnectProjectId);
 }
 
 const config = defaultConfig({
