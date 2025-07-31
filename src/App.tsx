@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ConnectButton } from '@xellar/kit';
-import { createPublicClient, http, formatGwei, parseGwei, erc20Abi, formatUnits, parseEther } from 'viem';
+import { createPublicClient, http, formatGwei, parseGwei, erc20Abi, formatUnits, parseEther, formatEther } from 'viem';
 import { sepolia } from 'viem/chains';
 import {
   useAccount,
@@ -22,7 +22,8 @@ import {
   Wallet,
   MessageSquare,
   Send,
-  Coins
+  Coins,
+  DollarSign
 } from 'lucide-react';
 
 // Konfigurasi Lisk Sepolia
@@ -105,6 +106,13 @@ interface NetworkConfig {
   rpcUrl: string;
 }
 
+interface EthPrice {
+  usd: number;
+  lastUpdate: number;
+  loading: boolean;
+  error: string | null;
+}
+
 const MultiNetworkGasTracker = () => {
   // Wallet hooks from original code
   const { address } = useAccount();
@@ -158,6 +166,14 @@ const MultiNetworkGasTracker = () => {
     lastUpdate: Date.now(),
   });
 
+  // ETH Price state
+  const [ethPrice, setEthPrice] = useState<EthPrice>({
+    usd: 0,
+    lastUpdate: 0,
+    loading: true,
+    error: null
+  });
+
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [gasHistory, setGasHistory] = useState<{
@@ -189,6 +205,48 @@ const MultiNetworkGasTracker = () => {
       explorer: 'https://sepolia-blockscout.lisk.com',
       rpcUrl: 'https://rpc.sepolia-api.lisk.com'
     }
+  };
+
+  // Fetch ETH price from CoinGecko
+  const fetchEthPrice = async () => {
+    try {
+      setEthPrice(prev => ({ ...prev, loading: true, error: null }));
+      
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
+      const data = await response.json();
+      
+      if (data.ethereum && data.ethereum.usd) {
+        setEthPrice({
+          usd: data.ethereum.usd,
+          lastUpdate: Date.now(),
+          loading: false,
+          error: null
+        });
+      } else {
+        throw new Error('Invalid price data');
+      }
+    } catch (error) {
+      console.error('Failed to fetch ETH price:', error);
+      setEthPrice(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to fetch ETH price'
+      }));
+    }
+  };
+
+  // Calculate gas cost in ETH and USD
+  const calculateGasCost = (gasPrice: bigint | null, gasLimit: bigint = BigInt(21000)) => {
+    if (!gasPrice) return { eth: '0', usd: '0' };
+    
+    const gasCostWei = gasPrice * gasLimit;
+    const gasCostEth = formatEther(gasCostWei);
+    const gasCostUsd = ethPrice.usd > 0 ? (parseFloat(gasCostEth) * ethPrice.usd).toFixed(4) : '0';
+    
+    return {
+      eth: parseFloat(gasCostEth).toFixed(6),
+      usd: gasCostUsd
+    };
   };
 
   // Wallet functions from original code
@@ -286,22 +344,44 @@ const MultiNetworkGasTracker = () => {
 
   useEffect(() => {
     fetchAllGasData();
+    fetchEthPrice();
   }, []);
 
   useEffect(() => {
     if (autoRefresh) {
-      const interval = setInterval(fetchAllGasData, 8000);
+      const interval = setInterval(() => {
+        fetchAllGasData();
+        // Refresh ETH price every minute
+        if (Date.now() - ethPrice.lastUpdate > 60000) {
+          fetchEthPrice();
+        }
+      }, 8000);
       setRefreshInterval(interval);
       return () => clearInterval(interval);
     } else if (refreshInterval) {
       clearInterval(refreshInterval);
       setRefreshInterval(null);
     }
-  }, [autoRefresh]);
+  }, [autoRefresh, ethPrice.lastUpdate]);
 
-  const formatGasPrice = (price: bigint | null) => {
+  const formatGasPrice = (price: bigint | null, showDetails: boolean = false) => {
     if (!price) return 'N/A';
-    return `${parseFloat(formatGwei(price)).toFixed(3)} Gwei`;
+    
+    const gweiPrice = parseFloat(formatGwei(price)).toFixed(3);
+    
+    if (!showDetails) {
+      return `${gweiPrice} Gwei`;
+    }
+    
+    const cost = calculateGasCost(price);
+    return (
+      <div className="space-y-1">
+        <div className="text-lg font-bold">{gweiPrice} Gwei</div>
+        <div className="text-xs opacity-80">
+          ~{cost.eth} ETH {ethPrice.usd > 0 && `($${cost.usd})`}
+        </div>
+      </div>
+    );
   };
 
   const getGasLevel = (gasPrice: bigint | null) => {
@@ -357,6 +437,25 @@ const MultiNetworkGasTracker = () => {
           </div>
         </div>
 
+        {/* ETH Price Display */}
+        <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-4 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="w-5 h-5" />
+              <span className="text-sm">ETH Price</span>
+            </div>
+            {ethPrice.loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+          </div>
+          <div className="text-lg font-bold mt-1">
+            {ethPrice.usd > 0 ? `$${ethPrice.usd.toLocaleString()}` : 'Loading...'}
+          </div>
+          {ethPrice.lastUpdate > 0 && (
+            <div className="text-xs opacity-80">
+              Updated: {getTimeSinceUpdate(ethPrice.lastUpdate)}
+            </div>
+          )}
+        </div>
+
         {gasData.error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center">
             <AlertCircle className="w-5 h-5 mr-2" />
@@ -370,26 +469,26 @@ const MultiNetworkGasTracker = () => {
               <Fuel className="w-5 h-5" />
               {gasData.loading && <RefreshCw className="w-4 h-4 animate-spin" />}
             </div>
-            <div className="text-lg font-bold">
-              {formatGasPrice(gasData.gasPrice)}
+            <div className="space-y-1">
+              {formatGasPrice(gasData.gasPrice, true)}
             </div>
-            <div className="text-xs opacity-80">Gas Price</div>
+            <div className="text-xs opacity-80 mt-2">Gas Price</div>
           </div>
 
           <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-xl">
             <TrendingUp className="w-5 h-5 mb-2" />
-            <div className="text-lg font-bold">
-              {formatGasPrice(gasData.baseFee)}
+            <div className="space-y-1">
+              {formatGasPrice(gasData.baseFee, true)}
             </div>
-            <div className="text-xs opacity-80">Base Fee</div>
+            <div className="text-xs opacity-80 mt-2">Base Fee</div>
           </div>
 
           <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 rounded-xl">
             <Activity className="w-5 h-5 mb-2" />
-            <div className="text-lg font-bold">
-              {formatGasPrice(gasData.priorityFee)}
+            <div className="space-y-1">
+              {formatGasPrice(gasData.priorityFee, true)}
             </div>
-            <div className="text-xs opacity-80">Priority Fee</div>
+            <div className="text-xs opacity-80 mt-2">Priority Fee</div>
           </div>
 
           <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-4 rounded-xl">
@@ -440,16 +539,20 @@ const MultiNetworkGasTracker = () => {
     const cheaper = sepoliaGwei < liskGwei ? 'Ethereum Sepolia' : 'Lisk Sepolia';
     const percentage = ((difference / Math.max(sepoliaGwei, liskGwei)) * 100).toFixed(1);
     
+    const sepoliaCost = calculateGasCost(sepoliaGas.gasPrice);
+    const liskCost = calculateGasCost(liskGas.gasPrice);
+    
     return (
       <div className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-2xl p-6 text-center">
         <Zap className="w-8 h-8 mx-auto mb-3" />
         <h3 className="text-xl font-bold mb-2">Network Comparison</h3>
-        <div className="text-lg">
+        <div className="text-lg mb-2">
           <strong>{cheaper}</strong> is cheaper by{' '}
           <strong>{difference.toFixed(3)} Gwei</strong> ({percentage}%)
         </div>
-        <div className="text-sm opacity-90 mt-2">
-          ETH Sepolia: {sepoliaGwei.toFixed(3)} Gwei | Lisk Sepolia: {liskGwei.toFixed(3)} Gwei
+        <div className="text-sm opacity-90 space-y-1">
+          <div>ETH Sepolia: {sepoliaGwei.toFixed(3)} Gwei (~{sepoliaCost.eth} ETH {ethPrice.usd > 0 && `/ $${sepoliaCost.usd}`})</div>
+          <div>Lisk Sepolia: {liskGwei.toFixed(3)} Gwei (~{liskCost.eth} ETH {ethPrice.usd > 0 && `/ $${liskCost.usd}`})</div>
         </div>
       </div>
     );
@@ -505,11 +608,14 @@ const MultiNetworkGasTracker = () => {
               <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
                 <div className="flex items-center space-x-4">
                   <button
-                    onClick={fetchAllGasData}
-                    disabled={sepoliaGas.loading || liskGas.loading}
+                    onClick={() => {
+                      fetchAllGasData();
+                      fetchEthPrice();
+                    }}
+                    disabled={sepoliaGas.loading || liskGas.loading || ethPrice.loading}
                     className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                   >
-                    <RefreshCw className={`w-4 h-4 ${(sepoliaGas.loading || liskGas.loading) ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-4 h-4 ${(sepoliaGas.loading || liskGas.loading || ethPrice.loading) ? 'animate-spin' : ''}`} />
                     <span>Refresh All</span>
                   </button>
                   
@@ -668,22 +774,6 @@ const MultiNetworkGasTracker = () => {
           </div>
         )}
 
-        {/* Instructions */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mt-6">
-          <h3 className="font-semibold text-gray-800 mb-3">📋 Cara Menggunakan</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-            <div className="space-y-2">
-              <p>• <strong>Gas Tracker:</strong> Monitor real-time gas fees</p>
-              <p>• <strong>Wallet Actions:</strong> Sign messages & send transactions</p>
-              <p>• <strong>Multi-Network:</strong> Support ETH & Lisk Sepolia</p>
-            </div>
-            <div className="space-y-2">
-              <p>• <strong>Auto Refresh:</strong> Update gas data setiap 8 detik</p>
-              <p>• <strong>Token Balance:</strong> Monitor ERC-20 token balance</p>
-              <p>• <strong>Real-time:</strong> Live blockchain data</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
