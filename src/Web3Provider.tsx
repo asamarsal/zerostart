@@ -18,7 +18,7 @@ const config = defaultConfig({
   walletConnectProjectId,
   // Required for Xellar Passport
   xellarAppId: xellarAppId,
-  xellarEnv: 'sandbox',
+  xellarEnv: 'production',
   chains: [sepolia, liskSepolia],
 }) as Config;
 
