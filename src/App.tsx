@@ -23,7 +23,12 @@ import {
   MessageSquare,
   Send,
   Coins,
-  DollarSign
+  DollarSign,
+  HandCoins, // Icon untuk Lend
+  ArrowUpDown,
+  TrendingDown,
+  Users,
+  Target
 } from 'lucide-react';
 
 // Konfigurasi Lisk Sepolia
@@ -113,6 +118,16 @@ interface EthPrice {
   error: string | null;
 }
 
+// Interface untuk lending data
+interface LendingData {
+  totalLent: number;
+  totalBorrowed: number;
+  currentAPY: number;
+  userBalance: number;
+  userLent: number;
+  userBorrowed: number;
+}
+
 const MultiNetworkGasTracker = () => {
   // Wallet hooks from original code
   const { address } = useAccount();
@@ -174,6 +189,19 @@ const MultiNetworkGasTracker = () => {
     error: null
   });
 
+  // Lending state
+  const [lendingData, setLendingData] = useState<LendingData>({
+    totalLent: 1250000,
+    totalBorrowed: 875000,
+    currentAPY: 8.5,
+    userBalance: 0,
+    userLent: 0,
+    userBorrowed: 0
+  });
+
+  const [lendAmount, setLendAmount] = useState('');
+  const [borrowAmount, setBorrowAmount] = useState('');
+
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [gasHistory, setGasHistory] = useState<{
@@ -184,7 +212,8 @@ const MultiNetworkGasTracker = () => {
     lisk: []
   });
 
-  const [activeTab, setActiveTab] = useState<'gas' | 'wallet'>('gas');
+  // Updated state untuk tiga tab
+  const [activeTab, setActiveTab] = useState<'gas' | 'wallet' | 'lend'>('gas');
 
   const networks: Record<string, NetworkConfig> = {
     sepolia: {
@@ -205,6 +234,52 @@ const MultiNetworkGasTracker = () => {
       explorer: 'https://sepolia-blockscout.lisk.com',
       rpcUrl: 'https://rpc.sepolia-api.lisk.com'
     }
+  };
+
+  // Lending functions
+  const handleLend = async () => {
+    if (!lendAmount || !address) return;
+    
+    const amount = parseFloat(lendAmount);
+    if (amount <= 0) return;
+
+    // Simulate lending transaction
+    console.log(`Lending ${amount} ETH`);
+    
+    // Update user data (this would be handled by smart contract in real implementation)
+    setLendingData(prev => ({
+      ...prev,
+      userLent: prev.userLent + amount,
+      totalLent: prev.totalLent + amount
+    }));
+    
+    setLendAmount('');
+  };
+
+  const handleBorrow = async () => {
+    if (!borrowAmount || !address) return;
+    
+    const amount = parseFloat(borrowAmount);
+    if (amount <= 0) return;
+
+    // Check collateral requirements (simplified)
+    const maxBorrow = lendingData.userLent * 0.8; // 80% LTV
+    if (lendingData.userBorrowed + amount > maxBorrow) {
+      alert('Insufficient collateral');
+      return;
+    }
+
+    // Simulate borrowing transaction
+    console.log(`Borrowing ${amount} ETH`);
+    
+    // Update user data
+    setLendingData(prev => ({
+      ...prev,
+      userBorrowed: prev.userBorrowed + amount,
+      totalBorrowed: prev.totalBorrowed + amount
+    }));
+    
+    setBorrowAmount('');
   };
 
   // Fetch ETH price from CoinGecko
@@ -564,9 +639,9 @@ const MultiNetworkGasTracker = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            Multi-Network DApp
+            ZeroStart
           </h1>
-          <p className="text-gray-600">Gas tracking & Wallet interactions untuk Sepolia networks</p>
+          <p className="text-gray-600">Borrow and lend gas fee and get some yield</p>
         </div>
 
         {/* Connect Button */}
@@ -574,7 +649,7 @@ const MultiNetworkGasTracker = () => {
           <ConnectButton />
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tab Navigation - Updated untuk tiga tab */}
         <div className="bg-white rounded-2xl shadow-lg p-2 mb-6 flex space-x-2">
           <button
             onClick={() => setActiveTab('gas')}
@@ -585,8 +660,9 @@ const MultiNetworkGasTracker = () => {
             }`}
           >
             <Fuel className="w-5 h-5" />
-            <span>Gas Tracker</span>
+            <span>Gas</span>
           </button>
+
           <button
             onClick={() => setActiveTab('wallet')}
             className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl transition-colors ${
@@ -596,7 +672,19 @@ const MultiNetworkGasTracker = () => {
             }`}
           >
             <Wallet className="w-5 h-5" />
-            <span>Wallet Actions</span>
+            <span>Wallet</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('lend')}
+            className={`flex-1 flex items-center justify-center space-x-2 py-3 px-4 rounded-xl transition-colors ${
+              activeTab === 'lend' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <HandCoins className="w-5 h-5" />
+            <span>Lend</span>
           </button>
         </div>
 
@@ -767,6 +855,271 @@ const MultiNetworkGasTracker = () => {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="text-sm text-gray-600 mb-2">ERC-20 Contract Address:</div>
                     <div className="font-mono text-sm break-all">0x3eede3fe85f32d013e368d02db07c0662390eadd</div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Lend Tab - New Tab */}
+        {activeTab === 'lend' && (
+          <div className="space-y-6">
+            {!address ? (
+              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                <HandCoins className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Connect Your Wallet</h2>
+                <p className="text-gray-600">Please connect your wallet to access lending and borrowing features</p>
+              </div>
+            ) : (
+              <>
+                {/* Protocol Overview */}
+                <div className="bg-white rounded-2xl shadow-xl p-6">
+                  <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                    <HandCoins className="w-8 h-8 mr-3" />
+                    ZeroStart Protocol
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl text-center">
+                      <TrendingUp className="w-8 h-8 mx-auto mb-2" />
+                      <div className="text-2xl font-bold">${lendingData.totalLent.toLocaleString()}</div>
+                      <div className="text-green-100 text-sm">Total Value Locked</div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl text-center">
+                      <Target className="w-8 h-8 mx-auto mb-2" />
+                      <div className="text-2xl font-bold">{lendingData.currentAPY}%</div>
+                      <div className="text-blue-100 text-sm">Current APY</div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl text-center">
+                      <Users className="w-8 h-8 mx-auto mb-2" />
+                      <div className="text-2xl font-bold">${lendingData.totalBorrowed.toLocaleString()}</div>
+                      <div className="text-purple-100 text-sm">Total Borrowed</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-4 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm opacity-90">Utilization Rate</div>
+                        <div className="text-lg font-bold">
+                          {((lendingData.totalBorrowed / lendingData.totalLent) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm opacity-90">Available to Borrow</div>
+                        <div className="text-lg font-bold">
+                          ${(lendingData.totalLent - lendingData.totalBorrowed).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* User Position */}
+                <div className="bg-white rounded-2xl shadow-xl p-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <Wallet className="w-6 h-6 mr-2" />
+                    Your Position
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <TrendingUp className="w-6 h-6" />
+                        <div className="text-emerald-100 text-sm">Lending</div>
+                      </div>
+                      <div className="text-2xl font-bold mb-1">{lendingData.userLent.toFixed(4)} ETH</div>
+                      <div className="text-emerald-100 text-sm">
+                        Earning: {((lendingData.userLent * lendingData.currentAPY) / 100).toFixed(4)} ETH/year
+                      </div>
+                    </div>
+                    
+                    <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <TrendingDown className="w-6 h-6" />
+                        <div className="text-red-100 text-sm">Borrowing</div>
+                      </div>
+                      <div className="text-2xl font-bold mb-1">{lendingData.userBorrowed.toFixed(4)} ETH</div>
+                      <div className="text-red-100 text-sm">
+                        Interest: {((lendingData.userBorrowed * (lendingData.currentAPY + 2)) / 100).toFixed(4)} ETH/year
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Health Factor */}
+                  {lendingData.userLent > 0 && (
+                    <div className="mt-6 bg-gray-50 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-gray-600">Health Factor</div>
+                          <div className="text-lg font-bold text-gray-800">
+                            {lendingData.userBorrowed > 0 ? 
+                              ((lendingData.userLent * 0.8) / lendingData.userBorrowed).toFixed(2) : 
+                              '∞'
+                            }
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Max Borrow</div>
+                          <div className="text-lg font-bold text-gray-800">
+                            {(lendingData.userLent * 0.8).toFixed(4)} ETH
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lending and Borrowing Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Lend Section */}
+                  <div className="bg-white rounded-2xl shadow-xl p-6">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                      <ArrowUpDown className="w-6 h-6 mr-2 text-green-600" />
+                      Lend ETH
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Amount to Lend
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={lendAmount}
+                            onChange={(e) => setLendAmount(e.target.value)}
+                            placeholder="0.0"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                          <div className="absolute right-3 top-3 text-gray-500 text-sm">ETH</div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-green-50 rounded-lg p-4">
+                        <div className="text-sm text-green-800 space-y-1">
+                          <div className="flex justify-between">
+                            <span>Current APY:</span>
+                            <span className="font-bold">{lendingData.currentAPY}%</span>
+                          </div>
+                          {lendAmount && parseFloat(lendAmount) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Est. Annual Return:</span>
+                              <span className="font-bold">
+                                {((parseFloat(lendAmount) * lendingData.currentAPY) / 100).toFixed(4)} ETH
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={handleLend}
+                        disabled={!lendAmount || parseFloat(lendAmount) <= 0}
+                        className="w-full bg-green-600 text-white rounded-lg px-4 py-3 hover:bg-green-700 disabled:opacity-50 transition-colors"
+                      >
+                        Lend ETH
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Borrow Section */}
+                  <div className="bg-white rounded-2xl shadow-xl p-6">
+                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                      <ArrowUpDown className="w-6 h-6 mr-2 text-red-600 rotate-180" />
+                      Borrow ETH
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Amount to Borrow
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={borrowAmount}
+                            onChange={(e) => setBorrowAmount(e.target.value)}
+                            placeholder="0.0"
+                            max={lendingData.userLent * 0.8 - lendingData.userBorrowed}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                          />
+                          <div className="absolute right-3 top-3 text-gray-500 text-sm">ETH</div>
+                        </div>
+                      </div>
+                      
+                      <div className="bg-red-50 rounded-lg p-4">
+                        <div className="text-sm text-red-800 space-y-1">
+                          <div className="flex justify-between">
+                            <span>Borrow APY:</span>
+                            <span className="font-bold">{lendingData.currentAPY + 2}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Available to Borrow:</span>
+                            <span className="font-bold">
+                              {(lendingData.userLent * 0.8 - lendingData.userBorrowed).toFixed(4)} ETH
+                            </span>
+                          </div>
+                          {borrowAmount && parseFloat(borrowAmount) > 0 && (
+                            <div className="flex justify-between">
+                              <span>Est. Annual Interest:</span>
+                              <span className="font-bold">
+                                {((parseFloat(borrowAmount) * (lendingData.currentAPY + 2)) / 100).toFixed(4)} ETH
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {lendingData.userLent === 0 ? (
+                        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg text-sm">
+                          You need to lend ETH first to use it as collateral for borrowing.
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleBorrow}
+                          disabled={
+                            !borrowAmount || 
+                            parseFloat(borrowAmount) <= 0 || 
+                            parseFloat(borrowAmount) > (lendingData.userLent * 0.8 - lendingData.userBorrowed)
+                          }
+                          className="w-full bg-red-600 text-white rounded-lg px-4 py-3 hover:bg-red-700 disabled:opacity-50 transition-colors"
+                        >
+                          Borrow ETH
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Gas Fee Lending Info */}
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl p-6">
+                  <h3 className="text-xl font-bold mb-4 flex items-center">
+                    <Fuel className="w-6 h-6 mr-2" />
+                    Gas Fee Lending
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-semibold mb-2">How it works:</h4>
+                      <ul className="text-sm space-y-1 opacity-90">
+                        <li>• Lend ETH to earn yield on gas fees</li>
+                        <li>• Borrow ETH for transactions when needed</li>
+                        <li>• Automated gas fee optimization</li>
+                        <li>• Cross-chain gas fee lending</li>
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Benefits:</h4>
+                      <ul className="text-sm space-y-1 opacity-90">
+                        <li>• Earn yield on idle ETH</li>
+                        <li>• Pay for gas across multiple chains</li>
+                        <li>• Lower transaction costs</li>
+                        <li>• Flexible borrowing terms</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </>
