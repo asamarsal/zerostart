@@ -24,7 +24,7 @@ import {
   Send,
   Coins,
   DollarSign,
-  HandCoins, // Icon untuk Lend
+  HandCoins,
   ArrowUpDown,
   TrendingDown,
   Users,
@@ -75,7 +75,7 @@ const liskSepoliaRpcUrls = [
 const sepoliaClient = createPublicClient({
   chain: sepolia,
   transport: http(sepoliaRpcUrls[0], {
-    timeout: 10000, // 10 second timeout
+    timeout: 10000,
     retryCount: 2,
     retryDelay: 1000
   })
@@ -128,8 +128,18 @@ interface LendingData {
   userBorrowed: number;
 }
 
+interface GasLoan {
+  id: string;
+  amount: string;
+  borrower: string;
+  timestamp: number;
+  repaid: boolean;
+  collateralToken: string;
+  collateralAmount: string;
+}
+
 const MultiNetworkGasTracker = () => {
-  // Wallet hooks from original code
+  // Wallet hooks
   const { address } = useAccount();
   const chainId = useChainId();
 
@@ -158,7 +168,7 @@ const MultiNetworkGasTracker = () => {
     isPending: isSending,
   } = useSendTransaction();
 
-  // Gas tracking state
+  // Gas tracking
   const [sepoliaGas, setSepoliaGas] = useState<GasData>({
     gasPrice: null,
     baseFee: null,
@@ -181,7 +191,7 @@ const MultiNetworkGasTracker = () => {
     lastUpdate: Date.now(),
   });
 
-  // ETH Price state
+  // ETH Price
   const [ethPrice, setEthPrice] = useState<EthPrice>({
     usd: 0,
     lastUpdate: 0,
@@ -196,11 +206,41 @@ const MultiNetworkGasTracker = () => {
     currentAPY: 8.5,
     userBalance: 0,
     userLent: 0,
-    userBorrowed: 0
+    userBorrowed: 0,
+    availableGasLoan: '0.1',
+    gasLoanHistory: []
   });
+
+  interface LendingData {
+  totalLent: number;
+  totalBorrowed: number;
+  currentAPY: number;
+  userBalance: number;
+  userLent: number;
+  userBorrowed: number;
+  availableGasLoan: string;
+  gasLoanHistory: GasLoan[];
+}
+
+interface TokenInfo {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  totalSupply: string;
+  balance: string;
+  verified: boolean;
+  loading: boolean;
+  error: string | null;
+}
 
   const [lendAmount, setLendAmount] = useState('');
   const [borrowAmount, setBorrowAmount] = useState('');
+
+  // Token search states
+    const [tokenSearch, setTokenSearch] = useState('');
+    const [searchedToken, setSearchedToken] = useState<TokenInfo | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
 
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -324,7 +364,7 @@ const MultiNetworkGasTracker = () => {
     };
   };
 
-  // Wallet functions from original code
+  // Wallet functions
   const handleSendTransaction = async () => {
     if (!address) return;
     await sendTransactionAsync({
@@ -349,13 +389,13 @@ const MultiNetworkGasTracker = () => {
         const client = createPublicClient({
           chain: networkKey === 'sepolia' ? sepolia : liskSepolia,
           transport: http(rpcUrls[i], {
-            timeout: 8000, // 8 second timeout
+            timeout: 8000,
             retryCount: 1,
             retryDelay: 500
           })
         });
 
-        // Fetch data with Promise.race for additional timeout
+        // Fetch data
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Request timeout')), 10000)
         );
@@ -392,7 +432,7 @@ const MultiNetworkGasTracker = () => {
         }));
 
         console.log(`✅ Successfully fetched ${network.name} data from: ${rpcUrls[i]}`);
-        return; // Success, exit the loop
+        return; // Success
 
       } catch (error) {
         console.warn(`❌ Failed to fetch ${network.name} data from ${rpcUrls[i]}:`, error);
@@ -480,6 +520,72 @@ const MultiNetworkGasTracker = () => {
     const minutes = Math.floor(seconds / 60);
     return `${minutes}m ago`;
   };
+
+  // ===========================================================
+  // Gas loan functions
+  const requestGasLoan = async () => {
+    if (!gasLoanAmount || !searchedToken || !address) return;
+
+    const loanId = Date.now().toString();
+    const newLoan: GasLoan = {
+      id: loanId,
+      amount: gasLoanAmount,
+      borrower: address,
+      timestamp: Date.now(),
+      repaid: false,
+      collateralToken: searchedToken.address,
+      collateralAmount: swapAmount,
+    };
+
+    setActiveGasLoan(newLoan);
+    setSwapStep('swap');
+    
+    // Simulate gas loan approval
+    setTimeout(() => {
+      setLendingData(prev => ({
+        ...prev,
+        gasLoanHistory: [...prev.gasLoanHistory, newLoan]
+      }));
+    }, 1000);
+  };
+
+  
+
+  const executeSwap = async () => {
+    if (!activeGasLoan || !searchedToken) return;
+
+    setSwapStep('repay');
+    
+    // Simulate swap execution
+    setTimeout(() => {
+      setSwapStep('completed');
+      if (activeGasLoan) {
+        setLendingData(prev => ({
+          ...prev,
+          gasLoanHistory: prev.gasLoanHistory.map(loan =>
+            loan.id === activeGasLoan.id ? { ...loan, repaid: true } : loan
+          )
+        }));
+      }
+    }, 2000);
+  };
+
+  const repayGasLoan = () => {
+    if (activeGasLoan) {
+      setActiveGasLoan(null);
+      setSwapStep('request');
+      setGasLoanAmount('');
+      setSwapAmount('');
+    }
+  };
+
+  const [gasLoanAmount, setGasLoanAmount] = useState('');
+  const [swapAmount, setSwapAmount] = useState('');
+  const [activeGasLoan, setActiveGasLoan] = useState<GasLoan | null>(null);
+  const [swapStep, setSwapStep] = useState<'request' | 'swap' | 'repay' | 'completed'>('request');
+
+  // ===========================================================
+
 
   const renderNetworkCard = (
     networkKey: string, 
