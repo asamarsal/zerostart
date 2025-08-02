@@ -840,7 +840,7 @@ const MultiNetworkGasTracker = () => {
             ZeroStart Protocol
           </h1>
           <p className="text-gray-600">
-            Automatic gas fee lending for seamless token swapping across chains
+            Borrow and lend gas fee and get some yield. Perfect for sell airdrop or farm yield
           </p>
         </div>
 
@@ -967,7 +967,7 @@ const MultiNetworkGasTracker = () => {
                         Token Balance
                       </div>
                       <div className="text-lg font-bold">
-                        {tokenBalance && !isReading ? formatUnits(tokenBalance as bigint, 6) : '0'} Tokens
+                        {tokenBalance && !isReading ? formatUnits(tokenBalance as bigint, 6) : '0'} ZeroStart Token
                       </div>
                     </div>
                   </div>
@@ -1077,7 +1077,7 @@ const MultiNetworkGasTracker = () => {
                 <div className="bg-white rounded-2xl shadow-xl p-6">
                   <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
                     <Fuel className="w-8 h-8 mr-3" />
-                    Gas Fee Lending Protocol
+                    ZeroStart Protocol
                   </h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
