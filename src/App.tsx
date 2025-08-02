@@ -1,3 +1,5 @@
+//App.tsx
+
 import React, { useState, useEffect } from 'react';
 import { ConnectButton } from '@xellar/kit';
 import { createPublicClient, http, formatGwei, parseGwei, erc20Abi, formatUnits, parseEther, formatEther } from 'viem';
@@ -28,7 +30,12 @@ import {
   ArrowUpDown,
   TrendingDown,
   Users,
-  Target
+  Target,
+  Search,
+  CheckCircle,
+  XCircle,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 
 // Konfigurasi Lisk Sepolia
@@ -128,14 +135,27 @@ interface LendingData {
   userBorrowed: number;
 }
 
-interface GasLoan {
-  id: string;
-  amount: string;
-  borrower: string;
-  timestamp: number;
-  repaid: boolean;
-  collateralToken: string;
-  collateralAmount: string;
+// interface GasLoan {
+//   id: string;
+//   amount: string;
+//   borrower: string;
+//   timestamp: number;
+//   repaid: boolean;
+//   collateralToken: string;
+//   collateralAmount: string;
+// }
+
+// Interface untuk Token Info (dari Testing.tsx)
+interface TokenInfo {
+  address: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  totalSupply: string;
+  balance: string;
+  verified: boolean;
+  loading: boolean;
+  error: string | null;
 }
 
 const MultiNetworkGasTracker = () => {
@@ -207,40 +227,15 @@ const MultiNetworkGasTracker = () => {
     userBalance: 0,
     userLent: 0,
     userBorrowed: 0,
-    availableGasLoan: '0.1',
-    gasLoanHistory: []
   });
-
-  interface LendingData {
-  totalLent: number;
-  totalBorrowed: number;
-  currentAPY: number;
-  userBalance: number;
-  userLent: number;
-  userBorrowed: number;
-  availableGasLoan: string;
-  gasLoanHistory: GasLoan[];
-}
-
-interface TokenInfo {
-  address: string;
-  name: string;
-  symbol: string;
-  decimals: number;
-  totalSupply: string;
-  balance: string;
-  verified: boolean;
-  loading: boolean;
-  error: string | null;
-}
 
   const [lendAmount, setLendAmount] = useState('');
   const [borrowAmount, setBorrowAmount] = useState('');
 
-  // Token search states
-    const [tokenSearch, setTokenSearch] = useState('');
-    const [searchedToken, setSearchedToken] = useState<TokenInfo | null>(null);
-    const [isSearching, setIsSearching] = useState(false);
+  // Token search states (dari Testing.tsx)
+  const [tokenSearch, setTokenSearch] = useState('');
+  const [searchedToken, setSearchedToken] = useState<TokenInfo | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
@@ -275,6 +270,102 @@ interface TokenInfo {
       rpcUrl: 'https://rpc.sepolia-api.lisk.com'
     }
   };
+
+  // Token search function (dari Testing.tsx)
+  const searchToken = async (contractAddress: string) => {
+    if (!contractAddress || contractAddress.length !== 42) {
+      setSearchedToken(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchedToken(null);
+
+    try {
+      // Create contract instance for token info
+      const tokenContract = {
+        address: contractAddress as `0x${string}`,
+        abi: erc20Abi,
+      };
+
+      // Fetch token information
+      const [name, symbol, decimals, totalSupply] = await Promise.all([
+        liskSepoliaClient.readContract({
+          ...tokenContract,
+          functionName: 'name',
+        }),
+        liskSepoliaClient.readContract({
+          ...tokenContract,
+          functionName: 'symbol',
+        }),
+        liskSepoliaClient.readContract({
+          ...tokenContract,
+          functionName: 'decimals',
+        }),
+        liskSepoliaClient.readContract({
+          ...tokenContract,
+          functionName: 'totalSupply',
+        }),
+      ]);
+
+      // Fetch user balance if wallet is connected
+      let balance = '0';
+      if (address) {
+        try {
+          const balanceResult = await liskSepoliaClient.readContract({
+            ...tokenContract,
+            functionName: 'balanceOf',
+            args: [address],
+          });
+          balance = formatUnits(balanceResult as bigint, decimals as number);
+        } catch (error) {
+          console.warn('Could not fetch token balance:', error);
+        }
+      }
+
+      const tokenInfo: TokenInfo = {
+        address: contractAddress,
+        name: name as string,
+        symbol: symbol as string,
+        decimals: decimals as number,
+        totalSupply: formatUnits(totalSupply as bigint, decimals as number),
+        balance,
+        verified: true, // In real implementation, check against verified contracts
+        loading: false,
+        error: null,
+      };
+
+      setSearchedToken(tokenInfo);
+    } catch (error) {
+      console.error('Token search error:', error);
+      setSearchedToken({
+        address: contractAddress,
+        name: 'Unknown Token',
+        symbol: 'UNKNOWN',
+        decimals: 18,
+        totalSupply: '0',
+        balance: '0',
+        verified: false,
+        loading: false,
+        error: 'Could not fetch token information',
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced token search (dari Testing.tsx)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (tokenSearch.trim() && tokenSearch.startsWith('0x')) {
+        searchToken(tokenSearch.trim());
+      } else {
+        setSearchedToken(null);
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [tokenSearch, address]);
 
   // Lending functions
   const handleLend = async () => {
@@ -520,72 +611,6 @@ interface TokenInfo {
     const minutes = Math.floor(seconds / 60);
     return `${minutes}m ago`;
   };
-
-  // ===========================================================
-  // Gas loan functions
-  const requestGasLoan = async () => {
-    if (!gasLoanAmount || !searchedToken || !address) return;
-
-    const loanId = Date.now().toString();
-    const newLoan: GasLoan = {
-      id: loanId,
-      amount: gasLoanAmount,
-      borrower: address,
-      timestamp: Date.now(),
-      repaid: false,
-      collateralToken: searchedToken.address,
-      collateralAmount: swapAmount,
-    };
-
-    setActiveGasLoan(newLoan);
-    setSwapStep('swap');
-    
-    // Simulate gas loan approval
-    setTimeout(() => {
-      setLendingData(prev => ({
-        ...prev,
-        gasLoanHistory: [...prev.gasLoanHistory, newLoan]
-      }));
-    }, 1000);
-  };
-
-  
-
-  const executeSwap = async () => {
-    if (!activeGasLoan || !searchedToken) return;
-
-    setSwapStep('repay');
-    
-    // Simulate swap execution
-    setTimeout(() => {
-      setSwapStep('completed');
-      if (activeGasLoan) {
-        setLendingData(prev => ({
-          ...prev,
-          gasLoanHistory: prev.gasLoanHistory.map(loan =>
-            loan.id === activeGasLoan.id ? { ...loan, repaid: true } : loan
-          )
-        }));
-      }
-    }, 2000);
-  };
-
-  const repayGasLoan = () => {
-    if (activeGasLoan) {
-      setActiveGasLoan(null);
-      setSwapStep('request');
-      setGasLoanAmount('');
-      setSwapAmount('');
-    }
-  };
-
-  const [gasLoanAmount, setGasLoanAmount] = useState('');
-  const [swapAmount, setSwapAmount] = useState('');
-  const [activeGasLoan, setActiveGasLoan] = useState<GasLoan | null>(null);
-  const [swapStep, setSwapStep] = useState<'request' | 'swap' | 'repay' | 'completed'>('request');
-
-  // ===========================================================
-
 
   const renderNetworkCard = (
     networkKey: string, 
@@ -1198,6 +1223,82 @@ interface TokenInfo {
                         </button>
                       )}
                     </div>
+                  </div>
+                </div>
+
+                {/* Token Search - Added from Testing.tsx */}
+                <div className="bg-white rounded-2xl shadow-xl p-6">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                    <Search className="w-6 h-6 mr-2" />
+                    Search Token for Swap
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={tokenSearch}
+                        onChange={(e) => setTokenSearch(e.target.value)}
+                        placeholder="Enter token contract address (0x...)"
+                        className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <div className="absolute right-3 top-3">
+                        {isSearching ? (
+                          <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
+                        ) : (
+                          <Search className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                    </div>
+
+                    {searchedToken && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="flex items-center space-x-2 mb-1">
+                              <h4 className="font-bold text-lg">{searchedToken.name}</h4>
+                              <span className="text-gray-600">({searchedToken.symbol})</span>
+                              {searchedToken.verified ? (
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                              ) : (
+                                <XCircle className="w-5 h-5 text-red-600" />
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-600 font-mono">{searchedToken.address}</div>
+                          </div>
+                          
+                          <a
+                            href={`https://sepolia-blockscout.lisk.com/address/${searchedToken.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <ExternalLink className="w-5 h-5" />
+                          </a>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Decimals:</span>
+                            <span className="ml-2 font-medium">{searchedToken.decimals}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Your Balance:</span>
+                            <span className="ml-2 font-medium">{parseFloat(searchedToken.balance).toFixed(4)} {searchedToken.symbol}</span>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-600">Total Supply:</span>
+                            <span className="ml-2 font-medium">{parseFloat(searchedToken.totalSupply).toLocaleString()} {searchedToken.symbol}</span>
+                          </div>
+                        </div>
+
+                        {searchedToken.error && (
+                          <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-sm">
+                            {searchedToken.error}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
