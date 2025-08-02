@@ -1,6 +1,7 @@
 {
   "framework": "vite",
-  "buildCommand": "npm run build",
+  "installCommand": "npm ci",
+  "buildCommand": "npm ci && npm run build",
   "outputDirectory": "dist",
   "env": {
     "VITE_XELLAR_APP_ID": "@vite_xellar_app_id",
