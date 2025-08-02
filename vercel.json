@@ -1,21 +1,4 @@
 {
-  "framework": "vite",
-  "installCommand": "npm ci",
-  "buildCommand": "npm ci && npm run build",
-  "outputDirectory": "dist",
-  "env": {
-    "VITE_XELLAR_APP_ID": "@vite_xellar_app_id",
-    "VITE_WC_PROJECT_ID": "@vite_wc_project_id"
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        }
-      ]
-    }
-  ]
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist"
 }
