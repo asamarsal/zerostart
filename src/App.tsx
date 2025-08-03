@@ -277,7 +277,7 @@ const MultiNetworkGasTracker = () => {
       chainId: 4202,
       client: liskSepoliaClient,
       color: 'purple',
-      gradient: 'from-purple-500 to-purple-600',
+      gradient: 'from-blue-500 to-blue-600',
       explorer: 'https://sepolia-blockscout.lisk.com',
       rpcUrl: 'https://rpc.sepolia-api.lisk.com'
     }
@@ -711,7 +711,7 @@ const MultiNetworkGasTracker = () => {
         </div>
 
         {/* ETH Price Display */}
-        <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-4 rounded-xl">
+        <div className="bg-gradient-to-r from-gray-600 to-gray-900 text-white p-4 rounded-xl">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <DollarSign className="w-5 h-5" />
@@ -764,7 +764,7 @@ const MultiNetworkGasTracker = () => {
             <div className="text-xs opacity-80 mt-2">Priority Fee</div>
           </div>
 
-          <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-4 rounded-xl">
+          <div className="bg-gradient-to-r from-indigo-800 to-indigo-900 text-white p-4 rounded-xl">
             <Clock className="w-5 h-5 mb-2" />
             <div className="text-lg font-bold">
               {gasData.blockNumber ? `#${gasData.blockNumber.toString().slice(-6)}` : 'N/A'}
@@ -1100,7 +1100,7 @@ const MultiNetworkGasTracker = () => {
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-4 rounded-xl">
+                  <div className="bg-gradient-to-r from-gray-600 to-gray-900 text-white p-4 rounded-xl">
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-sm opacity-90">Utilization Rate</div>
